@@ -27,7 +27,7 @@ defmodule WorkerExperiment.Worker do
   end
 
   @impl GenServer
-  def handle_info({:process_message, _}, task) do
+  def handle_call({:process_message, _}, _from, task) do
     WorkerExperiment.Repo.transaction(fn ->
       Ecto.Adapters.SQL.query(WorkerExperiment.Repo, "select 1")
     end)
@@ -37,7 +37,7 @@ defmodule WorkerExperiment.Worker do
 
   def stream(pid) do
     WorkerExperiment.HttpStream.stream(0, fn i, acc ->
-      send(pid, {:process_message, i})
+      GenServer.call(pid, {:process_message, i})
       acc + i
     end)
   end

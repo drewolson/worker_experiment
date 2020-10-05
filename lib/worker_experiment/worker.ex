@@ -7,28 +7,32 @@ defmodule WorkerExperiment.Worker do
 
   @impl GenServer
   def init(_) do
-    {:ok, :running, {:continue, :start_stream}}
+    Process.flag(:trap_exit, true)
+
+    {:ok, nil, {:continue, :start_stream}}
   end
 
   @impl GenServer
-  def handle_continue(:start_stream, state) do
-    Task.start_link(__MODULE__, :stream, [self()])
+  def handle_continue(:start_stream, _) do
+    task = Task.async(__MODULE__, :stream, [self()])
 
-    {:noreply, state}
+    {:noreply, task}
   end
 
   @impl GenServer
-  def handle_call(:stop, _from, _state), do: {:reply, :ok, :stopped}
+  def terminate(_reason, task) do
+    Task.shutdown(task)
+
+    :ok
+  end
 
   @impl GenServer
-  def handle_info({:process_message, _}, :stopped), do: {:noreply, :stopped}
-
-  def handle_info({:process_message, _}, :running) do
+  def handle_info({:process_message, _}, task) do
     WorkerExperiment.Repo.transaction(fn ->
       Ecto.Adapters.SQL.query(WorkerExperiment.Repo, "select 1")
     end)
 
-    {:noreply, :running}
+    {:noreply, task}
   end
 
   def stream(pid) do
